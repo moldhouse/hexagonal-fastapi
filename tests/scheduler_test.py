@@ -4,16 +4,18 @@ from typing import AsyncGenerator
 import pytest
 
 from src.scheduler import Scheduler
-from src.worker import WorkerApi
+from src.worker import WorkerApi, WorkerResponse
 
 
-class SpyWorker:
+class SpyWorker(WorkerApi):
     def __init__(self) -> None:
         self.calls: int = 0
 
-    async def complete(self, prompts: list[str]) -> list[str]:
+    async def complete(self, prompts: list[str]) -> list[WorkerResponse]:
         self.calls += 1
-        return [prompt for prompt in prompts]
+        return [
+            WorkerResponse(completion=prompt, tokens=len(prompt)) for prompt in prompts
+        ]
 
 
 @pytest.fixture
@@ -35,7 +37,7 @@ async def test_scheduler_completes_prompts(scheduler: Scheduler, worker: SpyWork
     completion = await scheduler.complete("prompt")
 
     # Then the prompt is completed
-    assert completion == "prompt"
+    assert completion.completion == "prompt"
 
     # And the worker is only called once
     assert worker.calls == 1
@@ -54,11 +56,14 @@ async def test_scheduler_completes_prompts_in_batches(
 async def test_scheduler_shutdown():
     # Given a scheduler with a worker that hangs forever
     class HangingWorker(WorkerApi):
-        async def complete(self, prompts: list[str]) -> list[str]:
+        async def complete(self, prompts: list[str]) -> list[WorkerResponse]:
             # create an event that will never be set
             event = asyncio.Event()
             await event.wait()
-            return [prompt for prompt in prompts]
+            return [
+                WorkerResponse(completion=prompt, tokens=len(prompt))
+                for prompt in prompts
+            ]
 
     worker = HangingWorker()
     scheduler = Scheduler(worker, max_wait_time=0.1)

@@ -7,7 +7,7 @@ from src.worker import StubWorker
 
 
 class App:
-    """The application runs the embedding service and the shell."""
+    """The application runs the scheduler and the shell."""
 
     def __init__(self, config: AppConfig) -> None:
         self.config = config

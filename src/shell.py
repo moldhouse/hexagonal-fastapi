@@ -24,7 +24,8 @@ class CompletionBody(BaseModel):
 async def complete(
     body: CompletionBody, scheduler: SchedulerApi = Depends(scheduler)
 ) -> str:
-    return await scheduler.complete(body.prompt)
+    response = await scheduler.complete(body.prompt)
+    return response.completion
 
 
 def routes() -> APIRouter:

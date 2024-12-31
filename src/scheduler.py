@@ -3,18 +3,20 @@ import sys
 from asyncio import Future, Queue
 from typing import NamedTuple, Protocol
 
-from src.worker import WorkerApi
+from src.worker import WorkerApi, WorkerResponse
 
 
 class CompletionTask(NamedTuple):
     """Internal representation of a completion task."""
 
     prompt: str
-    future: Future[str]  # future is used to send the result back to the caller
+    future: Future[
+        WorkerResponse
+    ]  # future is used to send the result back to the caller
 
 
 class SchedulerApi(Protocol):
-    async def complete(self, prompt: str) -> str: ...
+    async def complete(self, prompt: str) -> WorkerResponse: ...
 
 
 class Scheduler(SchedulerApi):
@@ -34,17 +36,17 @@ class Scheduler(SchedulerApi):
         self.tasks: list[asyncio.Task[None]] = []
         self.max_wait_time = max_wait_time
 
-    async def complete(self, prompt: str) -> str:
+    async def complete(self, prompt: str) -> WorkerResponse:
         """Complete a given prompt."""
-        future: Future[str] = Future()
+        future: Future[WorkerResponse] = Future()
         await self.incoming.put(CompletionTask(prompt, future))
         return await future
 
     async def run(self) -> None:
         """Schedule a worker run for existing completion tasks.
 
-        Tasks are scheduled to run in batches of 8.
-        If no tasks are incoming, existing tasks do not have to wait more than 0.1 seconds.
+        Tasks are scheduled to run in batches of 8. If no tasks are incoming,
+        existing tasks never have to wait more than `max_wait_time` seconds.
         """
         loop = asyncio.get_running_loop()
         self.next_run: int | float = sys.maxsize
