@@ -3,18 +3,18 @@ import asyncio
 from fastapi.testclient import TestClient
 
 from src.config import AppConfig
-from src.scheduler import SchedulerApi
+from src.scheduler import CompletionRequest, SchedulerApi
 from src.shell import Shell, build_app
 from src.worker import CompletionResponse
 
 
 class StubScheduler(SchedulerApi):
     def __init__(self) -> None:
-        self.requests: list[str] = []
+        self.requests: list[CompletionRequest] = []
 
-    async def complete(self, prompt: str) -> CompletionResponse:
-        self.requests.append(prompt)
-        return CompletionResponse(completion=prompt, tokens=len(prompt))
+    async def complete(self, request: CompletionRequest) -> CompletionResponse:
+        self.requests.append(request)
+        return CompletionResponse(completion=request.prompt, tokens=len(request.prompt))
 
 
 async def test_shell_can_be_shutdown():
@@ -55,7 +55,7 @@ def test_complete():
 
     # when we call the jobs route
     with TestClient(app) as client:
-        response = client.post("/complete", json={"prompt": "hello"})
+        response = client.post("/complete", json={"prompt": "hello", "user_id": 1})
 
     # then we get a 200 response
     assert response.status_code == 200

@@ -2,11 +2,10 @@ from contextlib import asynccontextmanager
 from typing import AsyncIterator, TypedDict, cast
 
 from fastapi import APIRouter, Depends, FastAPI, Request
-from pydantic import BaseModel
 from uvicorn import Config, Server
 
 from src.config import AppConfig
-from src.scheduler import SchedulerApi
+from src.scheduler import CompletionRequest, SchedulerApi
 
 
 def health() -> str:
@@ -17,14 +16,10 @@ def scheduler(request: Request) -> SchedulerApi:
     return cast(SchedulerApi, request.state.scheduler)
 
 
-class CompletionBody(BaseModel):
-    prompt: str
-
-
 async def complete(
-    body: CompletionBody, scheduler: SchedulerApi = Depends(scheduler)
+    request: CompletionRequest, scheduler: SchedulerApi = Depends(scheduler)
 ) -> str:
-    response = await scheduler.complete(body.prompt)
+    response = await scheduler.complete(request)
     return response.completion
 
 

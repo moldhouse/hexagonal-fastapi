@@ -3,24 +3,34 @@ import sys
 from asyncio import Future, Queue
 from typing import NamedTuple, Protocol
 
+from pydantic import BaseModel
+
+from src.repository import Repository
 from src.worker import CompletionResponse, WorkerApi
+
+
+class CompletionRequest(BaseModel):
+    prompt: str
+    user_id: int
 
 
 class CompletionTask(NamedTuple):
     """Internal representation of a completion task."""
 
-    prompt: str
+    request: CompletionRequest
     future: Future[CompletionResponse]
 
 
 class SchedulerApi(Protocol):
-    async def complete(self, prompt: str) -> CompletionResponse: ...
+    async def complete(self, request: CompletionRequest) -> CompletionResponse: ...
 
 
 class Scheduler(SchedulerApi):
     """Batch completion jobs and send them to a worker."""
 
-    def __init__(self, worker: WorkerApi, max_wait_time: float) -> None:
+    def __init__(
+        self, worker: WorkerApi, repository: Repository, max_wait_time: float
+    ) -> None:
         """Initialize the scheduler.
 
         Args:
@@ -28,16 +38,17 @@ class Scheduler(SchedulerApi):
             max_wait_time: Maximum time in seconds a completion requests needs to wait
                 for other tasks to join its batch.
         """
+        self.worker = worker
+        self.repository = repository
+        self.max_wait_time = max_wait_time
         self.incoming: Queue[CompletionTask] = Queue()
         self.scheduled: list[CompletionTask] = []
-        self.worker = worker
         self.worker_tasks: list[asyncio.Task[None]] = []
-        self.max_wait_time = max_wait_time
 
-    async def complete(self, prompt: str) -> CompletionResponse:
+    async def complete(self, request: CompletionRequest) -> CompletionResponse:
         """Complete a given prompt."""
         future: Future[CompletionResponse] = Future()
-        await self.incoming.put(CompletionTask(prompt, future))
+        await self.incoming.put(CompletionTask(request, future))
         return await future
 
     async def run(self) -> None:
@@ -73,9 +84,10 @@ class Scheduler(SchedulerApi):
 
         The results are returned to the original caller.
         """
-        results = await self.worker.complete([task.prompt for task in tasks])
+        results = await self.worker.complete([task.request.prompt for task in tasks])
         for task, result in zip(tasks, results):
             task.future.set_result(result)
+            await self.repository.store_token_usage(task.request.user_id, result.tokens)
 
     def shutdown(self) -> None:
         """Gracefully shut down the scheduler."""

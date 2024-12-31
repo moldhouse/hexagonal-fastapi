@@ -3,7 +3,8 @@ from typing import AsyncGenerator
 
 import pytest
 
-from src.scheduler import Scheduler
+from src.repository import StubRepository
+from src.scheduler import CompletionRequest, Scheduler
 from src.worker import CompletionResponse, WorkerApi
 
 
@@ -25,8 +26,15 @@ def worker() -> SpyWorker:
 
 
 @pytest.fixture
-async def scheduler(worker: SpyWorker) -> AsyncGenerator[Scheduler, None]:
-    scheduler = Scheduler(worker, max_wait_time=0.1)
+def repository() -> StubRepository:
+    return StubRepository()
+
+
+@pytest.fixture
+async def scheduler(
+    worker: SpyWorker, repository: StubRepository
+) -> AsyncGenerator[Scheduler, None]:
+    scheduler = Scheduler(worker, repository, max_wait_time=0.1)
     loop = asyncio.get_event_loop()
     task = loop.create_task(scheduler.run())
     yield scheduler
@@ -35,7 +43,8 @@ async def scheduler(worker: SpyWorker) -> AsyncGenerator[Scheduler, None]:
 
 async def test_scheduler_completes_prompts(scheduler: Scheduler, worker: SpyWorker):
     # When adding a prompt to a running scheduler
-    completion = await scheduler.complete("prompt")
+    request = CompletionRequest(prompt="prompt", user_id=1)
+    completion = await scheduler.complete(request)
 
     # Then the prompt is completed
     assert completion.completion == "prompt"
@@ -48,13 +57,14 @@ async def test_scheduler_completes_prompts_in_batches(
     scheduler: Scheduler, worker: SpyWorker
 ):
     # When adding 8 prompts to a running scheduler
-    await asyncio.gather(*[scheduler.complete(f"prompt {i}") for i in range(8)])
+    request = CompletionRequest(prompt="prompt", user_id=1)
+    await asyncio.gather(*[scheduler.complete(request) for _ in range(8)])
 
     # Then the worker is only called once
     assert worker.calls == 1
 
 
-async def test_scheduler_shutdown():
+async def test_scheduler_shutdown(repository: StubRepository):
     # Given a scheduler with a worker that hangs forever
     class HangingWorker(WorkerApi):
         async def complete(self, prompts: list[str]) -> list[CompletionResponse]:
@@ -67,12 +77,24 @@ async def test_scheduler_shutdown():
             ]
 
     worker = HangingWorker()
-    scheduler = Scheduler(worker, max_wait_time=0.1)
+    scheduler = Scheduler(worker, repository, max_wait_time=0.1)
     task = asyncio.create_task(scheduler.run())
 
     # When a completion is requested
-    asyncio.create_task(scheduler.complete("prompt"))
+    request = CompletionRequest(prompt="prompt", user_id=1)
+    asyncio.create_task(scheduler.complete(request))
 
     # Then the scheduler can still be shutdown
     scheduler.shutdown()
     await task
+
+
+async def test_scheduler_stores_token_usage(
+    scheduler: Scheduler, repository: StubRepository
+):
+    # When a completion is requested
+    request = CompletionRequest(prompt="prompt", user_id=1)
+    await scheduler.complete(request)
+
+    # Then the repository is updated
+    assert repository.data[1] == 6
