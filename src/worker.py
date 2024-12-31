@@ -1,7 +1,7 @@
 from typing import NamedTuple, Protocol
 
 
-class WorkerResponse(NamedTuple):
+class CompletionResponse(NamedTuple):
     completion: str
     tokens: int
 
@@ -13,13 +13,14 @@ class WorkerApi(Protocol):
     Invocation could be over HTTP.
     """
 
-    async def complete(self, prompts: list[str]) -> list[WorkerResponse]: ...
+    async def complete(self, prompts: list[str]) -> list[CompletionResponse]: ...
 
 
 class StubWorker(WorkerApi):
     """Stub worker implementation that returns the prompt as the completion."""
 
-    async def complete(self, prompts: list[str]) -> list[WorkerResponse]:
+    async def complete(self, prompts: list[str]) -> list[CompletionResponse]:
         return [
-            WorkerResponse(completion=prompt, tokens=len(prompt)) for prompt in prompts
+            CompletionResponse(completion=prompt, tokens=len(prompt))
+            for prompt in prompts
         ]

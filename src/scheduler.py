@@ -3,20 +3,18 @@ import sys
 from asyncio import Future, Queue
 from typing import NamedTuple, Protocol
 
-from src.worker import WorkerApi, WorkerResponse
+from src.worker import CompletionResponse, WorkerApi
 
 
 class CompletionTask(NamedTuple):
     """Internal representation of a completion task."""
 
     prompt: str
-    future: Future[
-        WorkerResponse
-    ]  # future is used to send the result back to the caller
+    future: Future[CompletionResponse]
 
 
 class SchedulerApi(Protocol):
-    async def complete(self, prompt: str) -> WorkerResponse: ...
+    async def complete(self, prompt: str) -> CompletionResponse: ...
 
 
 class Scheduler(SchedulerApi):
@@ -33,12 +31,12 @@ class Scheduler(SchedulerApi):
         self.incoming: Queue[CompletionTask] = Queue()
         self.scheduled: list[CompletionTask] = []
         self.worker = worker
-        self.tasks: list[asyncio.Task[None]] = []
+        self.worker_tasks: list[asyncio.Task[None]] = []
         self.max_wait_time = max_wait_time
 
-    async def complete(self, prompt: str) -> WorkerResponse:
+    async def complete(self, prompt: str) -> CompletionResponse:
         """Complete a given prompt."""
-        future: Future[WorkerResponse] = Future()
+        future: Future[CompletionResponse] = Future()
         await self.incoming.put(CompletionTask(prompt, future))
         return await future
 
@@ -64,23 +62,23 @@ class Scheduler(SchedulerApi):
                 break
 
             if len(self.scheduled) == 8 or loop.time() >= self.next_run:
-                self.tasks.append(
+                self.worker_tasks.append(
                     asyncio.create_task(self.complete_batch(self.scheduled))
                 )
                 self.scheduled = []
                 self.next_run = sys.maxsize
 
-    async def complete_batch(self, messages: list[CompletionTask]) -> None:
+    async def complete_batch(self, tasks: list[CompletionTask]) -> None:
         """Complete a batch of messages by sending them to the worker.
 
         The results are returned to the original caller.
         """
-        results = await self.worker.complete([message.prompt for message in messages])
-        for message, result in zip(messages, results):
-            message.future.set_result(result)
+        results = await self.worker.complete([task.prompt for task in tasks])
+        for task, result in zip(tasks, results):
+            task.future.set_result(result)
 
     def shutdown(self) -> None:
         """Gracefully shut down the scheduler."""
         self.incoming.shutdown()
-        for task in self.tasks:
+        for task in self.worker_tasks:
             task.cancel()

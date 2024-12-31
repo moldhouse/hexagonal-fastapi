@@ -4,17 +4,18 @@ from typing import AsyncGenerator
 import pytest
 
 from src.scheduler import Scheduler
-from src.worker import WorkerApi, WorkerResponse
+from src.worker import CompletionResponse, WorkerApi
 
 
 class SpyWorker(WorkerApi):
     def __init__(self) -> None:
         self.calls: int = 0
 
-    async def complete(self, prompts: list[str]) -> list[WorkerResponse]:
+    async def complete(self, prompts: list[str]) -> list[CompletionResponse]:
         self.calls += 1
         return [
-            WorkerResponse(completion=prompt, tokens=len(prompt)) for prompt in prompts
+            CompletionResponse(completion=prompt, tokens=len(prompt))
+            for prompt in prompts
         ]
 
 
@@ -56,12 +57,12 @@ async def test_scheduler_completes_prompts_in_batches(
 async def test_scheduler_shutdown():
     # Given a scheduler with a worker that hangs forever
     class HangingWorker(WorkerApi):
-        async def complete(self, prompts: list[str]) -> list[WorkerResponse]:
+        async def complete(self, prompts: list[str]) -> list[CompletionResponse]:
             # create an event that will never be set
             event = asyncio.Event()
             await event.wait()
             return [
-                WorkerResponse(completion=prompt, tokens=len(prompt))
+                CompletionResponse(completion=prompt, tokens=len(prompt))
                 for prompt in prompts
             ]
 

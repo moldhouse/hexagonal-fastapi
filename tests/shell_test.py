@@ -5,15 +5,16 @@ from fastapi.testclient import TestClient
 from src.config import AppConfig
 from src.scheduler import SchedulerApi
 from src.shell import Shell, build_app
+from src.worker import CompletionResponse
 
 
 class StubScheduler(SchedulerApi):
     def __init__(self) -> None:
         self.requests: list[str] = []
 
-    async def complete(self, prompt: str) -> str:
+    async def complete(self, prompt: str) -> CompletionResponse:
         self.requests.append(prompt)
-        return prompt
+        return CompletionResponse(completion=prompt, tokens=len(prompt))
 
 
 async def test_shell_can_be_shutdown():
@@ -48,7 +49,7 @@ def test_health():
 
 
 def test_complete():
-    # given an embedding service with one job
+    # given an app with a scheduler
     scheduler = StubScheduler()
     app = build_app(scheduler)
 

@@ -1,13 +1,10 @@
-# Python Default
-
-Ideas on how to configure and setup a Python project.
+# Hexagonal FastAPI
 
 ## Getting Started
 
 ```sh
 uv sync
 ```
-
 
 Run the scheduler with
 
