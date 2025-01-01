@@ -1,5 +1,7 @@
 # Hexagonal FastAPI
 
+A scheduler that collects incoming completion requests and send them in batches to a worker. Used to explore hexagonal architecture patterns and the `asyncio` module.
+
 ## Getting Started
 
 ```sh
