@@ -28,6 +28,8 @@ class SchedulerApi(Protocol):
 class Scheduler(SchedulerApi):
     """Batch completion jobs and send them to a worker."""
 
+    BATCH_SIZE: int = 8
+
     def __init__(
         self, worker: WorkerApi, repository: Repository, max_wait_time: float
     ) -> None:
@@ -54,7 +56,7 @@ class Scheduler(SchedulerApi):
     async def run(self) -> None:
         """Schedule a worker run for existing completion tasks.
 
-        Tasks are scheduled to run in batches of 8. If no tasks are incoming,
+        Tasks are scheduled to run in batches. If no tasks are incoming,
         existing tasks never have to wait more than `max_wait_time` seconds.
         """
         loop = asyncio.get_running_loop()
@@ -72,7 +74,7 @@ class Scheduler(SchedulerApi):
             except asyncio.QueueShutDown:
                 break
 
-            if len(self.scheduled) == 8 or loop.time() >= self.next_run:
+            if len(self.scheduled) == self.BATCH_SIZE or loop.time() >= self.next_run:
                 self.worker_tasks.append(
                     asyncio.create_task(self.complete_batch(self.scheduled))
                 )
