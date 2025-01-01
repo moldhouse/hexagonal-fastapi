@@ -19,7 +19,7 @@ class App:
             worker = StubWorker()
             repository = StubRepository()
 
-            self.scheduler = Scheduler(worker, repository, max_wait_time=1.0)
+            self.scheduler = Scheduler(worker, repository)
             self.shell = Shell(self.config, self.scheduler)
 
             tg.create_task(self.scheduler.run())

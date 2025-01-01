@@ -34,7 +34,7 @@ def repository() -> StubRepository:
 async def scheduler(
     worker: SpyWorker, repository: StubRepository
 ) -> AsyncGenerator[Scheduler, None]:
-    scheduler = Scheduler(worker, repository, max_wait_time=0.1)
+    scheduler = Scheduler(worker, repository)
     loop = asyncio.get_event_loop()
     task = loop.create_task(scheduler.run())
     yield scheduler
@@ -77,7 +77,7 @@ async def test_scheduler_shutdown(repository: StubRepository):
             ]
 
     worker = HangingWorker()
-    scheduler = Scheduler(worker, repository, max_wait_time=0.1)
+    scheduler = Scheduler(worker, repository)
     task = asyncio.create_task(scheduler.run())
 
     # When a completion is requested

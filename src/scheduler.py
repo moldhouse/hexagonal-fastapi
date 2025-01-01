@@ -29,20 +29,17 @@ class Scheduler(SchedulerApi):
     """Batch completion jobs and send them to a worker."""
 
     BATCH_SIZE: int = 8
+    MAX_WAIT_TIME: float = 0.1  # seconds
 
-    def __init__(
-        self, worker: WorkerApi, repository: Repository, max_wait_time: float
-    ) -> None:
+    def __init__(self, worker: WorkerApi, repository: Repository) -> None:
         """Initialize the scheduler.
 
         Args:
             worker: The worker to send completion tasks to.
-            max_wait_time: Maximum time in seconds a completion requests needs to wait
-                for other tasks to join its batch.
+            repository: Stores token usage
         """
         self.worker = worker
         self.repository = repository
-        self.max_wait_time = max_wait_time
         self.incoming: Queue[CompletionTask] = Queue()
         self.scheduled: list[CompletionTask] = []
         self.worker_tasks: list[asyncio.Task[None]] = []
@@ -57,7 +54,7 @@ class Scheduler(SchedulerApi):
         """Schedule a worker run for existing completion tasks.
 
         Tasks are scheduled to run in batches. If no tasks are incoming,
-        existing tasks never have to wait more than `max_wait_time` seconds.
+        existing tasks never have to wait more than `MAX_WAIT_TIME` seconds.
         """
         loop = asyncio.get_running_loop()
         self.next_run: int | float = sys.maxsize
@@ -67,7 +64,7 @@ class Scheduler(SchedulerApi):
                     task = await self.incoming.get()
 
                 if len(self.scheduled) == 0:
-                    self.next_run = loop.time() + self.max_wait_time
+                    self.next_run = loop.time() + self.MAX_WAIT_TIME
                 self.scheduled.append(task)
             except asyncio.TimeoutError:
                 pass
